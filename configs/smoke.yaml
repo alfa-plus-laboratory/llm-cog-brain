@@ -1,0 +1,59 @@
+# --smoke: synthetic Pereira2018-shaped data, toy LM, CPU only, < 1 min.
+# Nothing here is a literature number. Writes only under tmp/smoke/.
+run_name: smoke
+seed: 0
+output_dir: tmp/smoke/out
+
+dataset:
+  name: synthetic
+  synthetic:
+    n_subjects: 3
+    n_blocks: 60          # passages
+    block_len: 4          # sentences per passage (Pereira2018 exp. 1 shape)
+    n_voxels: 400
+    signal: true          # the smoke run also repeats everything with false (negative control)
+    gains: {semantic: 1.5, position: 0.6, word_rate: 0.6, drift: 1.0, noise: 1.4}
+
+model:
+  backend: synthetic
+  name: toy-lm
+  layers: [1, 2, 3, 4, 5, 6]
+  layer_selection: nested
+  context: passage
+  cache_dir: tmp/smoke/cache/activations
+
+# ---- the three switches -------------------------------------------------
+pooling: last             # last | mean | sum
+split:
+  kind: contiguous        # contiguous (primary) | shuffled (control only, never decides)
+  control: shuffled
+  n_folds: 5
+  inner_folds: 3
+baselines:
+  enabled: true           # false -> no confound control; judge can then at most say 不成立
+  confounds: [position, word_rate]
+  diagnostics: [oasm]
+# --------------------------------------------------------------------------
+
+null_test:               # key is not `null`: YAML would read that as a null value
+  method: circular_shift
+  n_perm: 1000            # 240 samples -> only 225 distinct shifts; all of them are used
+  min_shift: 8            # two passages
+
+bootstrap:
+  n_boot: 1000
+  unit: block
+  hierarchical: true
+  ci: 0.95
+
+judge:
+  alpha: 0.05
+  sesoi_delta: 0.02
+  min_test_blocks: 10
+
+claim:
+  paper: synthetic
+  claim_id: smoke-1
+  text: "toy LM 激活在控制位置与语速后仍能预测（合成）脑响应"
+  reference_value: null
+  min_retention: null

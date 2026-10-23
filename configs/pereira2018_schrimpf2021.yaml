@@ -1,0 +1,75 @@
+# First real target: S1 = Schrimpf et al. 2021 (PNAS 118(45)) x Pereira2018.
+# Data release and its limits: the Pereira2018 loader in src/d1/data.py.  Loader/ceiling self-check:
+#   data/venv/bin/python scripts/check_pereira2018.py
+# Pereira2018 = Pereira et al. 2018, Nat Commun 9:963 (OSF crwz7). It is NOT OpenNeuro ds003020.
+run_name: pereira2018_schrimpf2021
+seed: 0
+output_dir: results/d1
+
+dataset:
+  name: pereira2018
+  # Brain-Score language assembly Pereira2018.language (sha1 f8434b40..., checked on load);
+  # Fetch: scripts/check_pereira2018.py --download
+  path: data/raw/pereira2018/brainscore/assy_Pereira2018_language.nc
+  experiment: 384sentences             # Pereira exp. 2: 96 passages x 4 sentences, 9 subjects
+  # Between-passage presentation order does not exist in this data (randomised per subject and
+  # session, responses combined over 3 sessions). topic_interleaved makes each contiguous fold
+  # hold out one passage from each of 12 topics, as in Hadidi, Feghhi et al.'s Pereira folds.
+  passage_order: topic_interleaved
+
+model:
+  backend: hf
+  name: gpt2-xl                        # public; the model S1 is about
+  layers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+           25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48]
+  layer_selection: nested              # chosen on inner folds; per-layer curve is reported separately
+  # TODO: neural-nlp's listen_to resets model context per `story`, which for Pereira2018 is
+  # experiment + topic (passage_category), not per passage; whether its GPT-2 wrapper actually
+  # carries context across sentences inside a story is not verified. `passage` is the 2026
+  # critique's setting.
+  context: passage
+  device: cpu
+  cache_dir: data/cache/activations
+
+# ---- the three switches -------------------------------------------------
+pooling: last
+split:
+  kind: contiguous
+  control: shuffled
+  n_folds: 8                           # 96 passages -> 12 per fold, like Hadidi/Feghhi et al. for 384sentences
+  inner_folds: 7
+baselines:
+  enabled: true
+  confounds: [position, word_rate]     # word_rate = words / 4 s: sentence length, since display time is fixed
+  diagnostics: [oasm]
+# --------------------------------------------------------------------------
+
+null_test:               # key is not `null`: YAML would read that as a null value
+  method: circular_shift
+  n_perm: 1000
+  min_shift: 8                         # two passages. Shifts run over the constructed passage sequence
+                                       # (see dataset.passage_order); within-passage autocorrelation is kept
+
+bootstrap:
+  n_boot: 2000
+  unit: block
+  hierarchical: true
+  ci: 0.95
+
+judge:
+  alpha: 0.05
+  sesoi_delta: 0.02                    # TODO: pre-register before looking at results
+  min_test_blocks: 10
+
+claim:                                 # S1, as locked in docs/judgement_table.md (row S1)
+  paper: "Schrimpf et al. 2021, PNAS 118(45) e2105646118"
+  claim_id: S1
+  text: "GPT2-xl 在 Pereira2018 上达噪声上限（归一化预测力 ≈ 100%）"
+  reference_value: 0.31                # raw r, from the verdict table; not re-derived here
+  # Schrimpf's raw r is OLS on a shuffled 5-fold split, median over each subject's voxels then
+  # median over subjects; this pipeline reports ridge, mean over voxels and subjects. With
+  # min_retention null the retention is reported only, never used to decide.
+  reference_metric: "raw Pearson r, Schrimpf protocol (OLS, shuffled 5-fold, median-of-medians)"
+  reference_source: "verdict table row S1. Ceiling 0.32: Schrimpf 2021 Fig. 2 legend + Discussion (checked); raw 0.31: not re-checked"
+  reference_ceiling: 0.32              # = 0.3186 in Schrimpf's own S3 artifact Pereira2018-encoding-ceiling.nc
+  min_retention: null

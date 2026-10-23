@@ -1,0 +1,11 @@
+# data/ is usually a symlink to a large disk: "/data" matches the link, "data/" a real directory
+/data
+data/
+tmp/
+results/
+notes/
+__pycache__/
+*.pyc
+.venv
+*.npz
+*.part
